@@ -87,15 +87,7 @@ async function deleteUsers() {
     }
 
     if (!anyDeleted) {
-      console.log("\n  ⚠️  Não foi possível deletar automaticamente.");
-      console.log("  Execute este SQL no Supabase SQL Editor e rode o script novamente:\n");
-      console.log(`  DELETE FROM auth.users WHERE email IN (`);
-      console.log(`    'admin@achilles.com',`);
-      console.log(`    'financeiro@achilles.com',`);
-      console.log(`    'consulta@achilles.com',`);
-      console.log(`    'usuario@achilles.com'`);
-      console.log(`  );\n`);
-      process.exit(0);
+      console.log("\n  ℹ️  Nenhum usuário existente encontrado — prosseguindo para o seed.\n");
     }
   }
 }
