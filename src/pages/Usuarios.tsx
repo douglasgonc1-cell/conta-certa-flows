@@ -139,7 +139,7 @@ const Usuarios = () => {
                     <TableCell>{u.full_name || "—"}</TableCell>
                     <TableCell className="text-xs">{u.email}</TableCell>
                     <TableCell>
-                      {(u.user_roles as any[])?.map((r: any) => (
+                      {u.roles?.map((r: any) => (
                         <Badge key={r.role} variant="secondary" className="mr-1">{roleLabels[r.role as AppRole] || r.role}</Badge>
                       ))}
                     </TableCell>
