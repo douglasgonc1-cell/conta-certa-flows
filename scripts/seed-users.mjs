@@ -11,34 +11,16 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const USERS = [
-  {
-    email: "admin@achilles.com",
-    password: "Achilles@2025",
-    fullName: "Administrador",
-    role: "admin",
-  },
-  {
-    email: "financeiro@achilles.com",
-    password: "Achilles@2025",
-    fullName: "Usuário Financeiro",
-    role: "financeiro",
-  },
-  {
-    email: "consulta@achilles.com",
-    password: "Achilles@2025",
-    fullName: "Unimed Consulta",
-    role: "unimed_consulta",
-  },
-  {
-    email: "usuario@achilles.com",
-    password: "Achilles@2025",
-    fullName: "Usuário Padrão",
-    role: "usuario",
-  },
+  { email: "admin@achilles.com",      password: "Achilles@2025", fullName: "Administrador",    role: "admin" },
+  { email: "financeiro@achilles.com", password: "Achilles@2025", fullName: "Usuário Financeiro", role: "financeiro" },
+  { email: "consulta@achilles.com",   password: "Achilles@2025", fullName: "Unimed Consulta",   role: "unimed_consulta" },
+  { email: "usuario@achilles.com",    password: "Achilles@2025", fullName: "Usuário Padrão",    role: "usuario" },
 ];
 
 async function seedUsers() {
   console.log("🌱 Iniciando seed de usuários...\n");
+
+  const created = [];
 
   for (const u of USERS) {
     process.stdout.write(`→ Criando ${u.email} (${u.role})... `);
@@ -56,29 +38,44 @@ async function seedUsers() {
 
     const userId = data.user?.id;
     if (!userId) {
-      console.log("❌ Usuário criado mas sem ID retornado (verifique se confirmação de e-mail está desabilitada).");
+      console.log("❌ Usuário criado mas sem ID retornado.");
+      console.log("   ⚠️  Verifique se 'Enable email confirmations' está DESABILITADO em Authentication → Settings.");
       continue;
     }
 
-    // Atribui role na tabela user_roles
-    const { error: roleError } = await supabase
-      .from("user_roles")
-      .insert({ user_id: userId, role: u.role });
-
-    if (roleError) {
-      console.log(`⚠️  Usuário criado mas erro ao atribuir role: ${roleError.message}`);
-    } else {
-      console.log("✅");
-    }
+    console.log(`✅ ID: ${userId}`);
+    created.push({ ...u, userId });
   }
 
-  console.log("\n📋 Credenciais criadas:");
-  console.log("─".repeat(60));
-  for (const u of USERS) {
-    console.log(`  Role: ${u.role.padEnd(16)} | Email: ${u.email.padEnd(28)} | Senha: ${u.password}`);
+  if (created.length === 0) {
+    console.log("\n❌ Nenhum usuário criado com sucesso.");
+    process.exit(1);
   }
-  console.log("─".repeat(60));
-  console.log("\n✅ Seed concluído!");
+
+  console.log("\n" + "─".repeat(70));
+  console.log("📋 CREDENCIAIS DE ACESSO:");
+  console.log("─".repeat(70));
+  for (const u of created) {
+    console.log(`  ${u.role.padEnd(16)} | ${u.email.padEnd(30)} | ${u.password}`);
+  }
+
+  console.log("\n" + "─".repeat(70));
+  console.log("📌 EXECUTE ESTE SQL NO SUPABASE (SQL Editor) PARA ATRIBUIR AS ROLES:");
+  console.log("─".repeat(70));
+
+  const roleValues = created
+    .map((u) => `('${u.userId}', '${u.role}')`)
+    .join(",\n  ");
+
+  const sql = `
+INSERT INTO public.user_roles (user_id, role) VALUES
+  ${roleValues}
+ON CONFLICT (user_id, role) DO NOTHING;
+`.trim();
+
+  console.log("\n" + sql + "\n");
+  console.log("─".repeat(70));
+  console.log(`\n✅ ${created.length} usuário(s) criado(s). Cole o SQL acima no Supabase SQL Editor e execute.`);
 }
 
 seedUsers().catch((err) => {
