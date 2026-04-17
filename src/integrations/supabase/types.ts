@@ -52,7 +52,14 @@ export type Database = {
           competencia: string
           created_at: string
           created_by: string | null
+          dt_limite_exclusao: string | null
+          dt_limite_inclusao: string | null
+          dt_vencimento_credora: string | null
+          dt_vencimento_devedora: string | null
+          hr_limite_exclusao: string | null
+          hr_limite_inclusao: string | null
           id: string
+          numero: number
           status: Database["public"]["Enums"]["encontro_status"]
           tipo: Database["public"]["Enums"]["encontro_tipo"]
           updated_at: string
@@ -61,7 +68,14 @@ export type Database = {
           competencia: string
           created_at?: string
           created_by?: string | null
+          dt_limite_exclusao?: string | null
+          dt_limite_inclusao?: string | null
+          dt_vencimento_credora?: string | null
+          dt_vencimento_devedora?: string | null
+          hr_limite_exclusao?: string | null
+          hr_limite_inclusao?: string | null
           id?: string
+          numero?: number
           status?: Database["public"]["Enums"]["encontro_status"]
           tipo: Database["public"]["Enums"]["encontro_tipo"]
           updated_at?: string
@@ -70,7 +84,14 @@ export type Database = {
           competencia?: string
           created_at?: string
           created_by?: string | null
+          dt_limite_exclusao?: string | null
+          dt_limite_inclusao?: string | null
+          dt_vencimento_credora?: string | null
+          dt_vencimento_devedora?: string | null
+          hr_limite_exclusao?: string | null
+          hr_limite_inclusao?: string | null
           id?: string
+          numero?: number
           status?: Database["public"]["Enums"]["encontro_status"]
           tipo?: Database["public"]["Enums"]["encontro_tipo"]
           updated_at?: string
@@ -148,6 +169,7 @@ export type Database = {
       }
       notas_debito: {
         Row: {
+          anexo_url: string | null
           created_at: string
           created_by: string | null
           deleted_at: string | null
@@ -165,6 +187,7 @@ export type Database = {
           valor: number
         }
         Insert: {
+          anexo_url?: string | null
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
@@ -182,6 +205,7 @@ export type Database = {
           valor: number
         }
         Update: {
+          anexo_url?: string | null
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
@@ -403,8 +427,10 @@ export type Database = {
       }
       tipos_nd: {
         Row: {
+          anexo_url: string | null
           ativo: boolean
           created_at: string
+          email: string | null
           id: string
           mapeamento_contabil: string | null
           nome: string
@@ -412,8 +438,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          anexo_url?: string | null
           ativo?: boolean
           created_at?: string
+          email?: string | null
           id?: string
           mapeamento_contabil?: string | null
           nome: string
@@ -421,8 +449,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          anexo_url?: string | null
           ativo?: boolean
           created_at?: string
+          email?: string | null
           id?: string
           mapeamento_contabil?: string | null
           nome?: string
@@ -436,6 +466,7 @@ export type Database = {
           ativo: boolean
           codigo: string
           created_at: string
+          email: string | null
           id: string
           nome: string
           updated_at: string
@@ -444,6 +475,7 @@ export type Database = {
           ativo?: boolean
           codigo: string
           created_at?: string
+          email?: string | null
           id?: string
           nome: string
           updated_at?: string
@@ -452,6 +484,7 @@ export type Database = {
           ativo?: boolean
           codigo?: string
           created_at?: string
+          email?: string | null
           id?: string
           nome?: string
           updated_at?: string

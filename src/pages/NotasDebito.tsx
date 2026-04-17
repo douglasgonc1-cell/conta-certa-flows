@@ -13,8 +13,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAudit } from "@/hooks/useAudit";
-import { Plus, Check, X } from "lucide-react";
+import { Plus, Check, X, Paperclip } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
+import FileUpload from "@/components/FileUpload";
+import { notifyND } from "@/lib/notify";
 
 type NDStatus = Database["public"]["Enums"]["nd_status"];
 
@@ -34,6 +36,7 @@ const NotasDebito = () => {
   const [tipoNdId, setTipoNdId] = useState("");
   const [valor, setValor] = useState("");
   const [descricao, setDescricao] = useState("");
+  const [anexoUrl, setAnexoUrl] = useState<string | null>(null);
   const { toast } = useToast();
   const { log } = useAudit();
   const { user, hasAnyRole } = useAuth();
@@ -46,7 +49,7 @@ const NotasDebito = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("notas_debito")
-        .select("*, encontros(competencia, tipo), unimed_credora:unimeds!notas_debito_unimed_credora_id_fkey(nome, codigo), unimed_devedora:unimeds!notas_debito_unimed_devedora_id_fkey(nome, codigo), tipos_nd!inner(sigla, nome)")
+        .select("*, encontros(competencia, tipo), unimed_credora:unimeds!notas_debito_unimed_credora_id_fkey(nome, codigo, email), unimed_devedora:unimeds!notas_debito_unimed_devedora_id_fkey(nome, codigo), tipos_nd!inner(sigla, nome, email)")
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -87,17 +90,54 @@ const NotasDebito = () => {
         tipo_nd_id: tipoNdId,
         valor: parseFloat(valor),
         descricao: descricao || null,
+        anexo_url: anexoUrl,
         created_by: user?.id,
         status: canManage ? "LANCADA" as const : "RASCUNHO" as const,
       };
-      const { error } = await supabase.from("notas_debito").insert(payload);
+      const { data: created, error } = await supabase.from("notas_debito").insert(payload).select("id").single();
       if (error) throw error;
-      await log("CRIAR", "notas_debito", undefined, undefined, payload);
+      await log("CRIAR", "notas_debito", created?.id, undefined, payload);
+
+      // Notificação por e-mail (não-bloqueante)
+      const tipo = tiposNd?.find((t) => t.id === tipoNdId);
+      const credora = unimeds?.find((u) => u.id === credoraId);
+      const enc = encontros?.find((e) => e.id === encontroId);
+      await notifyND({
+        acao: "CRIADA",
+        tipoNdEmail: (tipo as any)?.email,
+        unimedEmail: (credora as any)?.email,
+        valor: parseFloat(valor),
+        competencia: enc?.competencia,
+        tipoNome: tipo?.nome,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notas_debito"] });
       toast({ title: "Nota de Débito criada" });
       setOpen(false);
+      setAnexoUrl(null);
+    },
+    onError: (err: any) => toast({ variant: "destructive", title: "Erro", description: err.message }),
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: async (n: any) => {
+      const { error } = await supabase.from("notas_debito").update({ status: "CANCELADA" as const, deleted_at: new Date().toISOString() }).eq("id", n.id);
+      if (error) throw error;
+      await log("EXCLUIR", "notas_debito", n.id, n, { status: "CANCELADA" });
+      await notifyND({
+        acao: "EXCLUIDA",
+        tipoNdEmail: (n.tipos_nd as any)?.email,
+        unimedEmail: (n.unimed_credora as any)?.email,
+        numero: n.numero,
+        valor: Number(n.valor),
+        competencia: (n.encontros as any)?.competencia,
+        tipoNome: (n.tipos_nd as any)?.nome,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notas_debito"] });
+      toast({ title: "ND cancelada" });
     },
     onError: (err: any) => toast({ variant: "destructive", title: "Erro", description: err.message }),
   });
@@ -162,7 +202,8 @@ const NotasDebito = () => {
                     <div className="space-y-2"><Label>Valor (R$)</Label><Input type="number" step="0.01" value={valor} onChange={(e) => setValor(e.target.value)} required /></div>
                   </div>
                   <div className="space-y-2"><Label>Descrição</Label><Textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} /></div>
-                  {!canManage && <p className="text-xs text-warning">Sua ND ficará como RASCUNHO pendente de liberação.</p>}
+                  <div className="space-y-2"><Label>Anexo</Label><FileUpload value={anexoUrl} onChange={setAnexoUrl} folder="notas_debito" /></div>
+                  {!canManage && <p className="text-xs text-warning">Sua ND ficará pendente de liberação.</p>}
                   <Button type="submit" className="w-full" disabled={createMutation.isPending}>{createMutation.isPending ? "Salvando..." : "Criar ND"}</Button>
                 </form>
               </DialogContent>
@@ -179,24 +220,32 @@ const NotasDebito = () => {
                 <TableHead>Devedora</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
+                <TableHead>Anexo</TableHead>
                 <TableHead>Status</TableHead>
                 {canManage && <TableHead>Ações</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
               ) : notas?.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Nenhuma ND encontrada</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Nenhuma ND encontrada</TableCell></TableRow>
               ) : (
-                notas?.map((n) => (
+                notas?.map((n: any) => (
                   <TableRow key={n.id}>
                     <TableCell className="font-mono text-xs">{(n.encontros as any)?.competencia}</TableCell>
                     <TableCell className="text-xs">{(n.unimed_credora as any)?.codigo}</TableCell>
                     <TableCell className="text-xs">{(n.unimed_devedora as any)?.codigo}</TableCell>
                     <TableCell className="text-xs">{(n.tipos_nd as any)?.sigla}</TableCell>
                     <TableCell className="text-right font-mono">{formatCurrency(Number(n.valor))}</TableCell>
-                    <TableCell><Badge className={statusColors[n.status]} variant="secondary">{n.status}</Badge></TableCell>
+                    <TableCell>
+                      {n.anexo_url ? (
+                        <a href={n.anexo_url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                          <Paperclip size={14} />
+                        </a>
+                      ) : <span className="text-muted-foreground text-xs">—</span>}
+                    </TableCell>
+                    <TableCell><Badge className={statusColors[n.status as NDStatus]} variant="secondary">{n.status}</Badge></TableCell>
                     {canManage && (
                       <TableCell className="flex gap-1">
                         {(n.status === "RASCUNHO" || n.status === "LANCADA") && (
@@ -205,7 +254,7 @@ const NotasDebito = () => {
                           </Button>
                         )}
                         {n.status !== "CANCELADA" && n.status !== "EXPORTADA" && (
-                          <Button variant="ghost" size="sm" onClick={() => statusMutation.mutate({ id: n.id, newStatus: "CANCELADA" })}>
+                          <Button variant="ghost" size="sm" onClick={() => cancelMutation.mutate(n)}>
                             <X size={14} />
                           </Button>
                         )}

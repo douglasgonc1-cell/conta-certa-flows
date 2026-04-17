@@ -15,6 +15,7 @@ import { useAudit } from "@/hooks/useAudit";
 import { Download, History, Filter } from "lucide-react";
 
 const ALL = "__all__";
+type ExportTipo = "ACR" | "APB";
 
 // ===== Helpers de formatação ACR =====
 const padR = (s: string, n: number) => (s || "").substring(0, n).padEnd(n, " ");
@@ -68,6 +69,7 @@ const buildL300 = (nd: any) => {
 };
 
 const Exportacao = () => {
+  const [tipoExport, setTipoExport] = useState<ExportTipo>("ACR");
   const [unimedId, setUnimedId] = useState(ALL);
   const [tipoNdId, setTipoNdId] = useState(ALL);
   const [competencia, setCompetencia] = useState("");
@@ -154,7 +156,8 @@ const Exportacao = () => {
       const selectedNds = ndsLiberadas?.filter((n) => selected.includes(n.id)) || [];
       const valorTotal = selectedNds.reduce((acc, n) => acc + Number(n.valor), 0);
       const ts = new Date();
-      const fileName = `acr${ts.getFullYear()}${String(ts.getMonth() + 1).padStart(2, "0")}${String(
+      const prefix = tipoExport === "ACR" ? "acr" : "apb";
+      const fileName = `${prefix}${ts.getFullYear()}${String(ts.getMonth() + 1).padStart(2, "0")}${String(
         ts.getDate(),
       ).padStart(2, "0")}.txt`;
 
@@ -173,10 +176,10 @@ const Exportacao = () => {
       const { data: exp, error } = await supabase
         .from("exportacoes")
         .insert({
-          tipo: "ACR",
+          tipo: tipoExport,
           filtros: {
-            unimed_id: unimedId !== ALL ? unimedId : null,
-            tipo_nd_id: tipoNdId !== ALL ? tipoNdId : null,
+            unimed_id: tipoExport === "ACR" && unimedId !== ALL ? unimedId : null,
+            tipo_nd_id: tipoExport === "ACR" && tipoNdId !== ALL ? tipoNdId : null,
             competencia: competencia || null,
             data_ini: dataIni || null,
             data_fim: dataFim || null,
@@ -200,6 +203,7 @@ const Exportacao = () => {
         .in("id", selected);
 
       await log("EXPORTAR", "exportacoes", exp.id, undefined, {
+        tipo: tipoExport,
         total_itens: selected.length,
         valor_total: valorTotal,
       });
@@ -216,7 +220,7 @@ const Exportacao = () => {
       queryClient.invalidateQueries({ queryKey: ["nds_liberadas"] });
       queryClient.invalidateQueries({ queryKey: ["exportacoes"] });
       queryClient.invalidateQueries({ queryKey: ["notas_debito"] });
-      toast({ title: "Exportação concluída", description: "Arquivo ACR gerado com sucesso." });
+      toast({ title: "Exportação concluída", description: `Arquivo ${tipoExport} gerado com sucesso.` });
       setSelected([]);
     },
     onError: (err: any) => toast({ variant: "destructive", title: "Erro", description: err.message }),
@@ -243,36 +247,57 @@ const Exportacao = () => {
           </p>
         </div>
 
+        {/* Seletor de tipo */}
+        <div className="rounded-xl border bg-card p-4">
+          <Label className="text-xs mb-2 block">Tipo de Exportação</Label>
+          <div className="flex gap-2">
+            <Button
+              variant={tipoExport === "ACR" ? "default" : "outline"}
+              size="sm"
+              onClick={() => { setTipoExport("ACR"); setSelected([]); }}
+            >ACR — com Unimed e Tipo de Nota</Button>
+            <Button
+              variant={tipoExport === "APB" ? "default" : "outline"}
+              size="sm"
+              onClick={() => { setTipoExport("APB"); setUnimedId(ALL); setTipoNdId(ALL); setSelected([]); }}
+            >APB — sem Unimed e Tipo</Button>
+          </div>
+        </div>
+
         {/* Filtros */}
         <div className="rounded-xl border bg-card p-4 space-y-4">
           <div className="flex items-center gap-2 text-sm font-medium">
             <Filter size={16} /> Filtros
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Unimed</Label>
-              <Select value={unimedId} onValueChange={setUnimedId}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL}>Todas</SelectItem>
-                  {unimeds?.map((u) => (
-                    <SelectItem key={u.id} value={u.id}>{u.codigo} - {u.nome}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Tipo de Nota</Label>
-              <Select value={tipoNdId} onValueChange={setTipoNdId}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL}>Todos</SelectItem>
-                  {tipos?.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>{t.sigla} - {t.nome}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {tipoExport === "ACR" && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Unimed</Label>
+                <Select value={unimedId} onValueChange={setUnimedId}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL}>Todas</SelectItem>
+                    {unimeds?.map((u) => (
+                      <SelectItem key={u.id} value={u.id}>{u.codigo} - {u.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {tipoExport === "ACR" && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Tipo de Nota</Label>
+                <Select value={tipoNdId} onValueChange={setTipoNdId}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL}>Todos</SelectItem>
+                    {tipos?.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>{t.sigla} - {t.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label className="text-xs">Competência</Label>
               <Input placeholder="MM/AAAA" value={competencia} onChange={(e) => setCompetencia(e.target.value)} />
@@ -300,7 +325,7 @@ const Exportacao = () => {
           </div>
           <Button onClick={() => exportMutation.mutate()} disabled={selected.length === 0 || exportMutation.isPending}>
             <Download size={16} className="mr-2" />
-            {exportMutation.isPending ? "Gerando..." : `Exportar ACR (${selected.length})`}
+            {exportMutation.isPending ? "Gerando..." : `Exportar ${tipoExport} (${selected.length})`}
           </Button>
         </div>
 
