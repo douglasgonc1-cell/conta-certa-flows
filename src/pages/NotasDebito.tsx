@@ -13,8 +13,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAudit } from "@/hooks/useAudit";
-import { Plus, Check, X } from "lucide-react";
+import { Plus, Check, X, Paperclip } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
+import FileUpload from "@/components/FileUpload";
+import { notifyND } from "@/lib/notify";
 
 type NDStatus = Database["public"]["Enums"]["nd_status"];
 
@@ -34,6 +36,7 @@ const NotasDebito = () => {
   const [tipoNdId, setTipoNdId] = useState("");
   const [valor, setValor] = useState("");
   const [descricao, setDescricao] = useState("");
+  const [anexoUrl, setAnexoUrl] = useState<string | null>(null);
   const { toast } = useToast();
   const { log } = useAudit();
   const { user, hasAnyRole } = useAuth();
@@ -87,17 +90,54 @@ const NotasDebito = () => {
         tipo_nd_id: tipoNdId,
         valor: parseFloat(valor),
         descricao: descricao || null,
+        anexo_url: anexoUrl,
         created_by: user?.id,
         status: canManage ? "LANCADA" as const : "RASCUNHO" as const,
       };
-      const { error } = await supabase.from("notas_debito").insert(payload);
+      const { data: created, error } = await supabase.from("notas_debito").insert(payload).select("id").single();
       if (error) throw error;
-      await log("CRIAR", "notas_debito", undefined, undefined, payload);
+      await log("CRIAR", "notas_debito", created?.id, undefined, payload);
+
+      // Notificação por e-mail (não-bloqueante)
+      const tipo = tiposNd?.find((t) => t.id === tipoNdId);
+      const credora = unimeds?.find((u) => u.id === credoraId);
+      const enc = encontros?.find((e) => e.id === encontroId);
+      await notifyND({
+        acao: "CRIADA",
+        tipoNdEmail: (tipo as any)?.email,
+        unimedEmail: (credora as any)?.email,
+        valor: parseFloat(valor),
+        competencia: enc?.competencia,
+        tipoNome: tipo?.nome,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notas_debito"] });
       toast({ title: "Nota de Débito criada" });
       setOpen(false);
+      setAnexoUrl(null);
+    },
+    onError: (err: any) => toast({ variant: "destructive", title: "Erro", description: err.message }),
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: async (n: any) => {
+      const { error } = await supabase.from("notas_debito").update({ status: "CANCELADA" as const, deleted_at: new Date().toISOString() }).eq("id", n.id);
+      if (error) throw error;
+      await log("EXCLUIR", "notas_debito", n.id, n, { status: "CANCELADA" });
+      await notifyND({
+        acao: "EXCLUIDA",
+        tipoNdEmail: (n.tipos_nd as any)?.email,
+        unimedEmail: (n.unimed_credora as any)?.email,
+        numero: n.numero,
+        valor: Number(n.valor),
+        competencia: (n.encontros as any)?.competencia,
+        tipoNome: (n.tipos_nd as any)?.nome,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notas_debito"] });
+      toast({ title: "ND cancelada" });
     },
     onError: (err: any) => toast({ variant: "destructive", title: "Erro", description: err.message }),
   });
@@ -162,7 +202,8 @@ const NotasDebito = () => {
                     <div className="space-y-2"><Label>Valor (R$)</Label><Input type="number" step="0.01" value={valor} onChange={(e) => setValor(e.target.value)} required /></div>
                   </div>
                   <div className="space-y-2"><Label>Descrição</Label><Textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} /></div>
-                  {!canManage && <p className="text-xs text-warning">Sua ND ficará como RASCUNHO pendente de liberação.</p>}
+                  <div className="space-y-2"><Label>Anexo</Label><FileUpload value={anexoUrl} onChange={setAnexoUrl} folder="notas_debito" /></div>
+                  {!canManage && <p className="text-xs text-warning">Sua ND ficará pendente de liberação.</p>}
                   <Button type="submit" className="w-full" disabled={createMutation.isPending}>{createMutation.isPending ? "Salvando..." : "Criar ND"}</Button>
                 </form>
               </DialogContent>
