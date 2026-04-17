@@ -49,7 +49,7 @@ const NotasDebito = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("notas_debito")
-        .select("*, encontros(competencia, tipo), unimed_credora:unimeds!notas_debito_unimed_credora_id_fkey(nome, codigo), unimed_devedora:unimeds!notas_debito_unimed_devedora_id_fkey(nome, codigo), tipos_nd!inner(sigla, nome)")
+        .select("*, encontros(competencia, tipo), unimed_credora:unimeds!notas_debito_unimed_credora_id_fkey(nome, codigo, email), unimed_devedora:unimeds!notas_debito_unimed_devedora_id_fkey(nome, codigo), tipos_nd!inner(sigla, nome, email)")
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -220,24 +220,32 @@ const NotasDebito = () => {
                 <TableHead>Devedora</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
+                <TableHead>Anexo</TableHead>
                 <TableHead>Status</TableHead>
                 {canManage && <TableHead>Ações</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
               ) : notas?.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Nenhuma ND encontrada</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Nenhuma ND encontrada</TableCell></TableRow>
               ) : (
-                notas?.map((n) => (
+                notas?.map((n: any) => (
                   <TableRow key={n.id}>
                     <TableCell className="font-mono text-xs">{(n.encontros as any)?.competencia}</TableCell>
                     <TableCell className="text-xs">{(n.unimed_credora as any)?.codigo}</TableCell>
                     <TableCell className="text-xs">{(n.unimed_devedora as any)?.codigo}</TableCell>
                     <TableCell className="text-xs">{(n.tipos_nd as any)?.sigla}</TableCell>
                     <TableCell className="text-right font-mono">{formatCurrency(Number(n.valor))}</TableCell>
-                    <TableCell><Badge className={statusColors[n.status]} variant="secondary">{n.status}</Badge></TableCell>
+                    <TableCell>
+                      {n.anexo_url ? (
+                        <a href={n.anexo_url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                          <Paperclip size={14} />
+                        </a>
+                      ) : <span className="text-muted-foreground text-xs">—</span>}
+                    </TableCell>
+                    <TableCell><Badge className={statusColors[n.status as NDStatus]} variant="secondary">{n.status}</Badge></TableCell>
                     {canManage && (
                       <TableCell className="flex gap-1">
                         {(n.status === "RASCUNHO" || n.status === "LANCADA") && (
@@ -246,7 +254,7 @@ const NotasDebito = () => {
                           </Button>
                         )}
                         {n.status !== "CANCELADA" && n.status !== "EXPORTADA" && (
-                          <Button variant="ghost" size="sm" onClick={() => statusMutation.mutate({ id: n.id, newStatus: "CANCELADA" })}>
+                          <Button variant="ghost" size="sm" onClick={() => cancelMutation.mutate(n)}>
                             <X size={14} />
                           </Button>
                         )}
