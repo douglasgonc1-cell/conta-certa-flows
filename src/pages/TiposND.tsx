@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useAudit } from "@/hooks/useAudit";
 import { Plus, Pencil } from "lucide-react";
+import FileUpload from "@/components/FileUpload";
 
 const TiposND = () => {
   const [open, setOpen] = useState(false);
@@ -19,6 +20,8 @@ const TiposND = () => {
   const [nome, setNome] = useState("");
   const [ativo, setAtivo] = useState(true);
   const [mapeamento, setMapeamento] = useState("");
+  const [email, setEmail] = useState("");
+  const [anexoUrl, setAnexoUrl] = useState<string | null>(null);
   const { toast } = useToast();
   const { log } = useAudit();
   const queryClient = useQueryClient();
@@ -34,7 +37,7 @@ const TiposND = () => {
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const payload = { sigla, nome, ativo, mapeamento_contabil: mapeamento || null };
+      const payload: any = { sigla, nome, ativo, mapeamento_contabil: mapeamento || null, email: email || null, anexo_url: anexoUrl };
       if (editing) {
         const { error } = await supabase.from("tipos_nd").update(payload).eq("id", editing.id);
         if (error) throw error;
@@ -56,11 +59,13 @@ const TiposND = () => {
   });
 
   const resetForm = () => {
-    setEditing(null); setSigla(""); setNome(""); setAtivo(true); setMapeamento(""); setOpen(false);
+    setEditing(null); setSigla(""); setNome(""); setAtivo(true); setMapeamento(""); setEmail(""); setAnexoUrl(null); setOpen(false);
   };
 
   const openEdit = (t: any) => {
-    setEditing(t); setSigla(t.sigla); setNome(t.nome); setAtivo(t.ativo); setMapeamento(t.mapeamento_contabil || ""); setOpen(true);
+    setEditing(t); setSigla(t.sigla); setNome(t.nome); setAtivo(t.ativo);
+    setMapeamento(t.mapeamento_contabil || ""); setEmail(t.email || ""); setAnexoUrl(t.anexo_url || null);
+    setOpen(true);
   };
 
   return (
@@ -81,6 +86,8 @@ const TiposND = () => {
                 <div className="space-y-2"><Label>Sigla</Label><Input value={sigla} onChange={(e) => setSigla(e.target.value)} required /></div>
                 <div className="space-y-2"><Label>Nome</Label><Input value={nome} onChange={(e) => setNome(e.target.value)} required /></div>
                 <div className="space-y-2"><Label>Mapeamento Contábil</Label><Input value={mapeamento} onChange={(e) => setMapeamento(e.target.value)} /></div>
+                <div className="space-y-2"><Label>E-mail (notificações)</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ex: notificacoes@unimed.coop.br" /></div>
+                <div className="space-y-2"><Label>Anexo (modelo / referência)</Label><FileUpload value={anexoUrl} onChange={setAnexoUrl} folder="tipos_nd" /></div>
                 <div className="flex items-center gap-2"><Switch checked={ativo} onCheckedChange={setAtivo} /><Label>Ativo</Label></div>
                 <Button type="submit" className="w-full" disabled={mutation.isPending}>{mutation.isPending ? "Salvando..." : "Salvar"}</Button>
               </form>

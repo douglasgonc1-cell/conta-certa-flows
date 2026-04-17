@@ -17,6 +17,7 @@ const Unimeds = () => {
   const [editing, setEditing] = useState<any>(null);
   const [codigo, setCodigo] = useState("");
   const [nome, setNome] = useState("");
+  const [email, setEmail] = useState("");
   const [ativo, setAtivo] = useState(true);
   const { toast } = useToast();
   const { log } = useAudit();
@@ -33,14 +34,15 @@ const Unimeds = () => {
 
   const mutation = useMutation({
     mutationFn: async () => {
+      const payload = { codigo, nome, email: email || null, ativo };
       if (editing) {
-        const { error } = await supabase.from("unimeds").update({ codigo, nome, ativo }).eq("id", editing.id);
+        const { error } = await supabase.from("unimeds").update(payload).eq("id", editing.id);
         if (error) throw error;
-        await log("EDITAR", "unimeds", editing.id, editing, { codigo, nome, ativo });
+        await log("EDITAR", "unimeds", editing.id, editing, payload);
       } else {
-        const { error } = await supabase.from("unimeds").insert({ codigo, nome, ativo });
+        const { error } = await supabase.from("unimeds").insert(payload);
         if (error) throw error;
-        await log("CRIAR", "unimeds", undefined, undefined, { codigo, nome, ativo });
+        await log("CRIAR", "unimeds", undefined, undefined, payload);
       }
     },
     onSuccess: () => {
@@ -57,6 +59,7 @@ const Unimeds = () => {
     setEditing(null);
     setCodigo("");
     setNome("");
+    setEmail("");
     setAtivo(true);
     setOpen(false);
   };
@@ -65,6 +68,7 @@ const Unimeds = () => {
     setEditing(u);
     setCodigo(u.codigo);
     setNome(u.nome);
+    setEmail(u.email || "");
     setAtivo(u.ativo);
     setOpen(true);
   };
@@ -94,6 +98,10 @@ const Unimeds = () => {
                   <Label>Nome</Label>
                   <Input value={nome} onChange={(e) => setNome(e.target.value)} required />
                 </div>
+                <div className="space-y-2">
+                  <Label>E-mail (notificações)</Label>
+                  <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="financeiro@unimed.coop.br" />
+                </div>
                 <div className="flex items-center gap-2">
                   <Switch checked={ativo} onCheckedChange={setAtivo} />
                   <Label>Ativo</Label>
@@ -112,20 +120,22 @@ const Unimeds = () => {
               <TableRow>
                 <TableHead>Código</TableHead>
                 <TableHead>Nome</TableHead>
+                <TableHead>E-mail</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-16" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
               ) : unimeds?.length === 0 ? (
-                <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Nenhuma Unimed cadastrada</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Nenhuma Unimed cadastrada</TableCell></TableRow>
               ) : (
                 unimeds?.map((u) => (
                   <TableRow key={u.id}>
                     <TableCell className="font-mono">{u.codigo}</TableCell>
                     <TableCell>{u.nome}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{(u as any).email || "—"}</TableCell>
                     <TableCell>
                       <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${u.ativo ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
                         {u.ativo ? "Ativo" : "Inativo"}
